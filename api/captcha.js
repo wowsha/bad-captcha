@@ -1,6 +1,7 @@
 import crypto from "crypto";
 
 global.__captchaStore = global.__captchaStore || new Map();
+global.__captchaSessions = global.__captchaSessions || new Map();
 
 function generateText(length = 5) {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -72,14 +73,30 @@ function getRawBody(req) {
   });
 }
 
+function base64Encode(str) {
+  return Buffer.from(str).toString("base64");
+}
+
+function base64Decode(str) {
+  return Buffer.from(str, "base64").toString();
+}
+
+// Helper to get client IP from headers (Vercel forwarded)
+function getClientIp(req) {
+  return (
+    req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+    req.connection?.remoteAddress ||
+    ""
+  );
+}
+
 export default async function handler(req, res) {
-  // *** CORS headers — MUST set on every request, including OPTIONS ***
+  // CORS headers — must be set on all requests
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") {
-    // Handle preflight requests quickly
     return res.status(204).end();
   }
 
@@ -90,7 +107,7 @@ export default async function handler(req, res) {
       const created = Date.now();
       global.__captchaStore.set(token, { text, created });
 
-      // Schedule token cleanup in 10 minutes
+      // Cleanup token after 10 minutes
       setTimeout(() => global.__captchaStore.delete(token), 10 * 60 * 1000);
 
       const svg = makeSvg(text);
@@ -139,7 +156,19 @@ export default async function handler(req, res) {
 
       if (answer.trim().toLowerCase() === record.text.trim().toLowerCase()) {
         store.delete(token);
-        return res.status(200).json({ success: true });
+
+        // Generate session id & store it with IP & timestamp
+        const sessionId = crypto.randomUUID();
+        const ip = getClientIp(req);
+        global.__captchaSessions.set(sessionId, { ip, created: now });
+
+        // Cleanup session after 10 minutes
+        setTimeout(() => global.__captchaSessions.delete(sessionId), 10 * 60 * 1000);
+
+        // Return sessionId base64 encoded as token
+        const encodedToken = base64Encode(sessionId);
+
+        return res.status(200).json({ success: true, token: encodedToken });
       } else {
         store.delete(token);
         return res.status(200).json({ success: false, reason: "Wrong answer" });
@@ -150,6 +179,26 @@ export default async function handler(req, res) {
     }
   }
 
-  // Method not allowed for any other HTTP methods
   return res.status(405).json({ error: "Method not allowed" });
+}
+
+// Helper to verify session token and IP
+export function verifySession(token, ip) {
+  try {
+    const sessionId = base64Decode(token);
+    if (!global.__captchaSessions.has(sessionId)) return false;
+
+    const sess = global.__captchaSessions.get(sessionId);
+    if (sess.ip !== ip) return false;
+
+    // Optional: check session expiration here (10 min max)
+    if (Date.now() - sess.created > 10 * 60 * 1000) {
+      global.__captchaSessions.delete(sessionId);
+      return false;
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
 }

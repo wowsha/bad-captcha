@@ -16,7 +16,7 @@
     return;
   }
 
-  const API_BASE = window.location.origin;
+  const API_BASE = "https://bad-captcha.vercel.app";
 
   const container = document.createElement("div");
   container.style =

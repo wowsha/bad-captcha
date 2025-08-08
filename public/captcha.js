@@ -1,7 +1,7 @@
 // /public/captcha.js
 (function () {
   // Set this to your deployed API domain
-  const API_BASE = "https://bad-captcha.vercel.app";
+  const API_BASE = window.location.origin;
 
   const COOKIE_NAME = "bad_captcha_pass";
   const COOKIE_HOURS = 3;

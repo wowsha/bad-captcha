@@ -27,7 +27,7 @@
         document.addEventListener('mousemove', () => mouseMoves++);
 
         // Request CAPTCHA
-        const res = await fetch('/api/captcha');
+        const res = await fetch('https://bad-captcha.vercel.app/api/captcha');
         const data = await res.json();
         token = data.token;
 
@@ -54,7 +54,7 @@
     // ===== CAPTCHA VERIFY =====
     async function verifyCaptcha() {
         const answer = document.getElementById('captchaInput').value;
-        const res = await fetch('/api/captcha', {
+        const res = await fetch('https://bad-captcha.vercel.app/api/captcha', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ token, answer, behavior: { mouseMoves } })

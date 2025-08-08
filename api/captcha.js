@@ -2,6 +2,17 @@ import { createCanvas } from 'canvas';
 import crypto from 'crypto';
 
 export default async function handler(req, res) {
+    // ==== UNIVERSAL CORS ====
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+
+    // ==== CAPTCHA STORE ====
     global.captchaStore = global.captchaStore || {};
 
     if (req.method === 'GET') {
@@ -11,8 +22,7 @@ export default async function handler(req, res) {
         global.captchaStore[token] = { text, created: Date.now() };
         const imageBuffer = createCaptchaImage(text);
 
-        res.setHeader('Content-Type', 'application/json');
-        res.send({
+        return res.status(200).json({
             token,
             image: `data:image/png;base64,${imageBuffer.toString('base64')}`
         });
@@ -23,12 +33,8 @@ export default async function handler(req, res) {
         const record = global.captchaStore[token];
 
         if (!record) return res.status(400).json({ success: false, reason: 'Invalid token' });
-
-        if (Date.now() - record.created < 1500)
-            return res.json({ success: false, reason: 'Too fast' });
-
-        if (!behavior?.mouseMoves || behavior.mouseMoves < 3)
-            return res.json({ success: false, reason: 'Suspicious behavior' });
+        if (Date.now() - record.created < 1500) return res.json({ success: false, reason: 'Too fast' });
+        if (!behavior?.mouseMoves || behavior.mouseMoves < 3) return res.json({ success: false, reason: 'Suspicious behavior' });
 
         if (answer.toLowerCase() === record.text.toLowerCase()) {
             delete global.captchaStore[token];

@@ -1,7 +1,19 @@
 (function () {
+  // Check if user already passed captcha via cookie
+  function hasPassedCaptcha() {
+    return document.cookie
+      .split(";")
+      .some((c) => c.trim().startsWith("captcha_passed=1"));
+  }
+
+  if (hasPassedCaptcha()) {
+    // User passed captcha, do nothing and don't block the page
+    return;
+  }
+
   const API_BASE = "https://bad-captcha.vercel.app";
 
-  // Create captcha container
+  // Create captcha container overlay
   const container = document.createElement("div");
   container.style =
     "position:fixed;top:0;left:0;width:100vw;height:100vh;" +
@@ -43,7 +55,6 @@
   let mouseMoves = 0;
   let startTime = Date.now();
 
-  // Track user mouse moves as simple behavior metric
   window.addEventListener("mousemove", () => {
     mouseMoves++;
   });

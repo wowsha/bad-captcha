@@ -1,19 +1,23 @@
 (function () {
-  // Helper to get cookie by name
   function getCookie(name) {
     const v = document.cookie.match("(^|;)\\s*" + name + "\\s*=\\s*([^;]+)");
     return v ? v.pop() : "";
   }
 
-  const captchaToken = getCookie("captcha_token");
+  function setCookie(name, value, minutes) {
+    const expires = new Date(Date.now() + minutes * 60000).toUTCString();
+    document.cookie = `${name}=${value}; expires=${expires}; path=/; SameSite=Lax`;
+  }
+
+  const CAPTCHA_COOKIE = "captcha_token";
+  const captchaToken = getCookie(CAPTCHA_COOKIE);
   if (captchaToken) {
-    // User already has valid token cookie, skip captcha UI
+    // Token exists, skip captcha UI
     return;
   }
 
-  const API_BASE = "https://bad-captcha.vercel.app";
+  const API_BASE = window.location.origin;
 
-  // Create captcha container overlay
   const container = document.createElement("div");
   container.style =
     "position:fixed;top:0;left:0;width:100vw;height:100vh;" +
@@ -109,9 +113,7 @@
 
       const result = await res.json();
       if (result.success && result.token) {
-        // Passed captcha — save session token cookie valid for 10 minutes
-        const expires = new Date(Date.now() + 10 * 60 * 1000).toUTCString();
-        document.cookie = `captcha_token=${result.token}; expires=${expires}; path=/; SameSite=Lax`;
+        setCookie(CAPTCHA_COOKIE, result.token, 10);
         info.innerText = "Captcha passed! Reloading...";
         setTimeout(() => location.reload(), 1000);
       } else {
@@ -126,7 +128,6 @@
   }
 
   button.addEventListener("click", verify);
-
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       verify();
@@ -134,4 +135,9 @@
   });
 
   loadCaptcha();
+
+  // Expose function to get token for use in API calls
+  window.getCaptchaToken = function () {
+    return getCookie(CAPTCHA_COOKIE);
+  };
 })();

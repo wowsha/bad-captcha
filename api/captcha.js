@@ -73,12 +73,13 @@ function getRawBody(req) {
 }
 
 export default async function handler(req, res) {
-  // CORS
+  // *** CORS headers — MUST set on every request, including OPTIONS ***
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") {
+    // Handle preflight requests quickly
     return res.status(204).end();
   }
 
@@ -89,7 +90,7 @@ export default async function handler(req, res) {
       const created = Date.now();
       global.__captchaStore.set(token, { text, created });
 
-      // Cleanup token after 10 minutes
+      // Schedule token cleanup in 10 minutes
       setTimeout(() => global.__captchaStore.delete(token), 10 * 60 * 1000);
 
       const svg = makeSvg(text);
@@ -125,7 +126,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ success: false, reason: "Token expired" });
       }
 
-      // Behavioral heuristics (optional)
+      // Behavioral checks
       const timeTaken = (behavior && behavior.timeTakenMs) || (now - record.created);
       const mouseMoves = (behavior && behavior.mouseMoves) || 0;
 
@@ -149,6 +150,6 @@ export default async function handler(req, res) {
     }
   }
 
-  // Method not allowed
+  // Method not allowed for any other HTTP methods
   return res.status(405).json({ error: "Method not allowed" });
 }

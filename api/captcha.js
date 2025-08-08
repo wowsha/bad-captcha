@@ -1,72 +1,49 @@
-import { createCanvas } from "@napi-rs/canvas";
-import crypto from 'crypto';
+// api/captcha.js
+import { createCanvas } from '@napi-rs/canvas';
 
 export default async function handler(req, res) {
-    // ==== UNIVERSAL CORS ====
+  try {
+    // --- Enable CORS for any origin ---
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-    // Handle preflight
     if (req.method === 'OPTIONS') {
-        return res.status(200).end();
+      res.status(204).end();
+      return;
     }
 
-    // ==== CAPTCHA STORE ====
-    global.captchaStore = global.captchaStore || {};
+    // --- Generate a random captcha text ---
+    const captchaText = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-    if (req.method === 'GET') {
-        const text = generateCaptchaText(5);
-        const token = crypto.randomUUID();
-
-        global.captchaStore[token] = { text, created: Date.now() };
-        const imageBuffer = createCaptchaImage(text);
-
-        return res.status(200).json({
-            token,
-            image: `data:image/png;base64,${imageBuffer.toString('base64')}`
-        });
-    }
-
-    if (req.method === 'POST') {
-        const { token, answer, behavior } = req.body;
-        const record = global.captchaStore[token];
-
-        if (!record) return res.status(400).json({ success: false, reason: 'Invalid token' });
-        if (Date.now() - record.created < 1500) return res.json({ success: false, reason: 'Too fast' });
-        if (!behavior?.mouseMoves || behavior.mouseMoves < 3) return res.json({ success: false, reason: 'Suspicious behavior' });
-
-        if (answer.toLowerCase() === record.text.toLowerCase()) {
-            delete global.captchaStore[token];
-            return res.json({ success: true });
-        }
-        res.json({ success: false, reason: 'Wrong answer' });
-    }
-}
-
-function generateCaptchaText(length) {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
-    return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-}
-
-function createCaptchaImage(text) {
-    const canvas = createCanvas(150, 50);
+    // --- Create an image ---
+    const width = 200;
+    const height = 80;
+    const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
 
-    ctx.fillStyle = '#f2f2f2';
-    ctx.fillRect(0, 0, 150, 50);
+    // Background
+    ctx.fillStyle = '#f0f0f0';
+    ctx.fillRect(0, 0, width, height);
 
-    for (let i = 0; i < 30; i++) {
-        ctx.fillStyle = `rgba(0,0,0,${Math.random()})`;
-        ctx.beginPath();
-        ctx.arc(Math.random() * 150, Math.random() * 50, 1, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    ctx.font = '30px sans-serif';
+    // Text
+    ctx.font = '40px Sans';
     ctx.fillStyle = '#000';
-    ctx.rotate((Math.random() - 0.5) * 0.1);
-    ctx.fillText(text, 20, 35);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(captchaText, width / 2, height / 2);
 
-    return canvas.toBuffer();
+    // Convert image to PNG buffer
+    const buffer = await canvas.encode('png');
+
+    // --- Send JSON with image as Base64 ---
+    res.status(200).json({
+      text: captchaText, // In production, store this server-side!
+      image: `data:image/png;base64,${buffer.toString('base64')}`
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'CAPTCHA generation failed' });
+  }
 }

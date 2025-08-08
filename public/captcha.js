@@ -1,13 +1,13 @@
 (function () {
-  // Check if user already passed captcha via cookie
-  function hasPassedCaptcha() {
-    return document.cookie
-      .split(";")
-      .some((c) => c.trim().startsWith("captcha_passed=1"));
+  // Helper to get cookie by name
+  function getCookie(name) {
+    const v = document.cookie.match("(^|;)\\s*" + name + "\\s*=\\s*([^;]+)");
+    return v ? v.pop() : "";
   }
 
-  if (hasPassedCaptcha()) {
-    // User passed captcha, do nothing and don't block the page
+  const captchaToken = getCookie("captcha_token");
+  if (captchaToken) {
+    // User already has valid token cookie, skip captcha UI
     return;
   }
 
@@ -108,10 +108,10 @@
       }
 
       const result = await res.json();
-      if (result.success) {
-        // Passed captcha — create cookie valid for 3 hours and reload
-        const expires = new Date(Date.now() + 3 * 60 * 60 * 1000).toUTCString();
-        document.cookie = `captcha_passed=1; expires=${expires}; path=/; SameSite=Lax`;
+      if (result.success && result.token) {
+        // Passed captcha — save session token cookie valid for 10 minutes
+        const expires = new Date(Date.now() + 10 * 60 * 1000).toUTCString();
+        document.cookie = `captcha_token=${result.token}; expires=${expires}; path=/; SameSite=Lax`;
         info.innerText = "Captcha passed! Reloading...";
         setTimeout(() => location.reload(), 1000);
       } else {
